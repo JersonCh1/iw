@@ -1,0 +1,106 @@
+# Ubuntu 24.04 + Apache 2.4 + 3 VirtualHost en 8088 (todo generado dentro del contenedor)
+FROM ubuntu:24.04
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y apache2 && rm -rf /var/lib/apt/lists/*
+
+# Contenido de sitios (páginas simples)
+RUN mkdir -p /var/www/sitio1 /var/www/sitio2 /var/www/sitio3 && \
+    cat > /var/www/sitio1/index.html <<'EOF'
+<!doctype html><meta charset="utf-8"><title>Alumnos - Sitio 1</title>
+<h1>VirtualHost: Alumnos</h1><p>Ruta: /sitio1 — Puerto: 8088</p>
+EOF
+RUN cat > /var/www/sitio2/index.html <<'EOF'
+<!doctype html><meta charset="utf-8"><title>Docentes - Sitio 2</title>
+<h1>VirtualHost: Docentes</h1><p>Ruta: /sitio2 — Puerto: 8088</p>
+EOF
+RUN cat > /var/www/sitio3/index.html <<'EOF'
+<!doctype html><meta charset="utf-8"><title>Administrativos - Sitio 3</title>
+<h1>VirtualHost: Administrativos</h1><p>Ruta: /sitio3 — Puerto: 8088</p>
+EOF
+
+# Puerto interno
+RUN printf "Listen 8088\n" > /etc/apache2/ports.conf
+
+# VHost por defecto con Alias /sitio1 /sitio2 /sitio3
+RUN cat > /etc/apache2/sites-available/000-default.conf <<'EOF'
+<VirtualHost *:8088>
+    ServerName 127.0.0.1
+    DocumentRoot /var/www/html
+    <Directory "/var/www/html">
+        Options Indexes FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+    Alias /sitio1 /var/www/sitio1
+    <Directory "/var/www/sitio1">
+        Options Indexes FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+    Alias /sitio2 /var/www/sitio2
+    <Directory "/var/www/sitio2">
+        Options Indexes FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+    Alias /sitio3 /var/www/sitio3
+    <Directory "/var/www/sitio3">
+        Options Indexes FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+    ErrorLog ${APACHE_LOG_DIR}/default-error.log
+    CustomLog ${APACHE_LOG_DIR}/default-access.log combined
+</VirtualHost>
+EOF
+
+# 3 VirtualHost por nombre
+RUN cat > /etc/apache2/sites-available/sitio1.conf <<'EOF'
+<VirtualHost *:8088>
+    ServerName alumnos.local
+    DocumentRoot /var/www/sitio1
+    <Directory "/var/www/sitio1">
+        Options Indexes FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+    ErrorLog ${APACHE_LOG_DIR}/sitio1-error.log
+    CustomLog ${APACHE_LOG_DIR}/sitio1-access.log combined
+</VirtualHost>
+EOF
+
+RUN cat > /etc/apache2/sites-available/sitio2.conf <<'EOF'
+<VirtualHost *:8088>
+    ServerName docentes.local
+    DocumentRoot /var/www/sitio2
+    <Directory "/var/www/sitio2">
+        Options Indexes FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+    ErrorLog ${APACHE_LOG_DIR}/sitio2-error.log
+    CustomLog ${APACHE_LOG_DIR}/sitio2-access.log combined
+</VirtualHost>
+EOF
+
+RUN cat > /etc/apache2/sites-available/sitio3.conf <<'EOF'
+<VirtualHost *:8088>
+    ServerName administrativos.local
+    DocumentRoot /var/www/sitio3
+    <Directory "/var/www/sitio3">
+        Options Indexes FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+    ErrorLog ${APACHE_LOG_DIR}/sitio3-error.log
+    CustomLog ${APACHE_LOG_DIR}/sitio3-access.log combined
+</VirtualHost>
+EOF
+
+# Habilitar módulos y sitios
+RUN a2enmod rewrite alias vhost_alias && \
+    a2ensite sitio1.conf sitio2.conf sitio3.conf 000-default.conf
+
+EXPOSE 8088
+CMD ["bash","-lc","mkdir -p /var/run/apache2; apachectl -t && exec apachec]()
